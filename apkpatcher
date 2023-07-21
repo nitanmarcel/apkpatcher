@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 
 
+from cgi import print_environ
+from fileinput import filename
 import os
 import sys
 import json
 import time
 import signal
 import shutil
-import os.path
 import argparse
 import requests
+import zipfile
 from appdirs import user_data_dir, user_cache_dir
 import tempfile
 import subprocess
@@ -49,6 +51,8 @@ class Patcher:
     cache_dir = user_cache_dir(appname, appauthor)
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
+
+    is_bundle = False
 
     VERBOSITY_LOW = 1   # only 'error' and 'done' messages
     VERBOSITY_MID = 2   # 'adding' messages too
@@ -315,6 +319,30 @@ class Patcher:
         else:
             self.print_info('Extracting {0} (without resources) to {1}'.format(apk_path, destination_path))
             subprocess.check_output(['apktool', '-f', '-r', 'd', '-o', destination_path, apk_path])
+
+    def extract_bundle(self, xapk_path):
+        tmp_dir = tempfile.gettempdir()
+        xapk_name = os.path.basename(xapk_path)
+        tmp_path = os.path.join(tmp_dir, xapk_name)
+        manifest_path = os.path.join(tmp_path, 'manifest.json')
+        base_apk = None
+        if not os.path.exists(tmp_path):
+            os.mkdir(tmp_path)
+        self.print_info('Extracting bundle {0} to {1}'.format(xapk_path, tmp_path))
+        with zipfile.ZipFile(xapk_path) as zip:
+            zip.extractall(tmp_path)
+        with open(manifest_path, 'r') as manifest_file:
+            manifest = json.load(manifest_file)
+            for apk in manifest['split_apks']:
+                if apk['id'] == 'base':
+                    base_apk = os.path.join(tmp_path, apk['file'])
+        if not base_apk:
+            self.print_warn('Failed to find base apk')
+            os.rmdir(tmp_path)
+            sys.exit(1)
+
+        self.print_info('Found base apk {0}'.format(os.path.basename(base_apk)))
+        return base_apk
 
     def has_permission(self, apk_path, permission_name):
         permissions = subprocess.check_output(['aapt', 'dump', 'permissions', apk_path]).decode('utf-8')
@@ -604,24 +632,47 @@ class Patcher:
 
         return True
 
-    def repackage_apk(self, base_apk_path, apk_name, target_file=None, use_aapt2=False):
+    def repackage_apk(self, base_apk_path, apk_name, target_file=None, bundle_path=None, use_aapt2=False, keep_keystore=True):
         if target_file is None:
             current_path = os.getcwd()
-            target_file = os.path.join(current_path, apk_name.replace('.apk', '_patched.apk'))
+            if bundle_path:
+                target_file = os.path.join(current_path, apk_name.replace('.xapk', '_patched.xapk'))
+            else:
+                target_file = os.path.join(current_path, apk_name.replace('.apk', '_patched.apk'))
 
             if os.path.isfile(target_file):
                 timestamp = str(time.time()).replace('.', '')
-                new_file_name = target_file.replace('.apk', '_{0}.apk'.format(timestamp))
+                if bundle_path:
+                    new_file_name = target_file.replace('.xapk', '_{0}.xapk'.format(timestamp))
+                else:
+                    new_file_name = target_file.replace('.apk', '_{0}.apk'.format(timestamp))
                 target_file = new_file_name
 
         self.print_info('Repackaging apk to {0}'.format(target_file))
         self.print_info('This may take some time...')
 
-        apktool_build_cmd = ['apktool', 'b', '-o', target_file, base_apk_path]
+        if bundle_path:
+            apktool_build_cmd = ['apktool', 'b', '-o', bundle_path, base_apk_path, '-f']
+        else:
+            apktool_build_cmd = ['apktool', 'b', '-o', target_file, base_apk_path, '-f']
         if use_aapt2:
-            apktool_build_cmd.insert(1, "--use-aapt2") # apktool --use-aapt2 b ...
-        
+            apktool_build_cmd.insert(1, "--use-aapt2") 
+
         subprocess.check_output(apktool_build_cmd)
+        if bundle_path:
+            bundle_dir = os.path.dirname(bundle_path)
+            self.sign_and_zipalign([os.path.join(bundle_dir, f) for f in os.listdir(bundle_dir) if f.endswith('.apk')], keep_keystore)
+        else:
+            self.sign_and_zipalign([target_file,],keep_keystore)
+
+        if bundle_path:
+            bundle_dir_path = os.path.dirname(bundle_path)
+            with zipfile.ZipFile(target_file, 'w', zipfile.ZIP_DEFLATED) as zip:
+                for foldername, subfolders, filenames in os.walk(bundle_dir_path):
+                    for filename in filenames:
+                        absolute_path = os.path.join(foldername, filename)
+                        relative_path = os.path.relpath(absolute_path, bundle_dir_path)  # use relative path
+                        zip.write(absolute_path, arcname=relative_path)  # remove folder hierarchy
 
         return target_file
 
@@ -762,36 +813,46 @@ class Patcher:
         with open(target_path, 'w') as js:
             js.write(content['source'])
         return target_path
+    
+    def remove_old_signature(self, apkfile):
+        tmp_zip = os.path.join(os.path.dirname(apkfile), 'tmp.zip')
+        with zipfile.ZipFile(apkfile, 'r') as zin:
+            with zipfile.ZipFile(tmp_zip, 'w') as zout:
+                for item in zin.infolist():
+                    if not str(item.filename).startswith('META-INF'):
+                        zout.writestr(item.filename, zin.read(item))
+        os.remove(apkfile)
+        os.rename(tmp_zip, apkfile)
 
-    def sign_and_zipalign(self, apk_path, keep_keystore):
+    def sign_and_zipalign(self, apk_paths, keep_keystore):
         keystorepath = os.path.join(self.cache_dir, 'apkpatcherkeystore')
         if not os.path.isfile(keystorepath):
             self.print_info('Generating a random key...')
             subprocess.call(
                 'keytool -genkey -keyalg RSA -keysize 2048 -validity 700 -noprompt -alias apkpatcheralias1 -dname '
                 '"CN=apk.patcher.com, OU=ID, O=APK, L=Patcher, S=Patch, C=BR" -keystore {0} '
-                '-storepass password -keypass password 2> /dev/null'.format(keystorepath),
+                '-storepass password -keypass password'.format(keystorepath),
                 shell=True)
-        self.print_info('Signing the patched apk...')
-        subprocess.call(
-            'jarsigner -sigalg SHA1withRSA -digestalg SHA1 -keystore {0} '
-            '-storepass password {1} apkpatcheralias1 >/dev/null 2>&1'.format(keystorepath, apk_path),
-            shell=True)
+        
+        for apk in apk_paths:
+            self.print_info('Removing any existing signatures in {0}...'.format(apk))
+            self.remove_old_signature(apk)
 
+            self.print_info('Signing {0}...'.format(apk))
+            subprocess.call(
+                'jarsigner -sigalg SHA1withRSA -digestalg SHA1 -keystore {0} '
+                '-storepass password {1} apkpatcheralias1'.format(keystorepath, apk),
+                shell=True)
+
+            self.print_info('The apk was signed!')
+            self.print_info('Optimizing with zipalign...')
+            tmp_target_file = apk.replace('.apk', '_tmp.apk')
+            shutil.move(tmp_target_file, apk)
+            
         if not keep_keystore:
             os.remove(keystorepath)
 
-        self.print_info('The apk was signed!')
-        self.print_info('Optimizing with zipalign...')
-
-        tmp_target_file = apk_path.replace('.apk', '_tmp.apk')
-        shutil.move(apk_path, tmp_target_file)
-
-        subprocess.call('zipalign 4 {0} {1}'.format(tmp_target_file, apk_path), stderr=subprocess.STDOUT, shell=True)
-
-        os.remove(tmp_target_file)
-
-        self.print_info('The file was optimized!')
+        self.print_info('The APK files were signed and optimized!')
 
     @staticmethod
     def get_int_frida_version(str_version):
@@ -922,6 +983,10 @@ def main():
     # THE APK PATCHING STARTS HERE
 
     apk_file_path = args.apk
+    apk_file_name = os.path.basename(apk_file_path)
+    if apk_file_path.endswith('.xapk'):
+        patcher.is_bundle = True
+        apk_file_path = patcher.extract_bundle(apk_file_path)
     temporary_path = patcher.create_temp_folder_for_apk(apk_file_path)
 
     has_internet_permission = False
@@ -971,8 +1036,6 @@ def main():
             patcher.insert_frida_lib(temporary_path, gadget_to_use)
         # END --[ INJECTING FRIDA LIB FILE AND SMALI CODE ]--
 
-    apk_file_name = apk_file_path.split('/')[-1]
-
     if args.wait_before_repackage:
         patcher.print_info('Apkpatcher is waiting for your OK to repackage the apk...')
 
@@ -998,9 +1061,10 @@ def main():
             patcher.print_info('Executing -> {0}'.format(command_to_execute))
             os.system(command_to_execute)
 
-    output_file_path = patcher.repackage_apk(temporary_path, apk_file_name, target_file=args.output_file, use_aapt2=args.use_aapt2)
-
-    patcher.sign_and_zipalign(output_file_path, args.keep_keystore)
+    if patcher.is_bundle:
+        output_file_path = patcher.repackage_apk(temporary_path, apk_file_name, target_file=args.output_file, bundle_path=apk_file_path, use_aapt2=args.use_aapt2, keep_keystore=args.keep_keystore)
+    else:
+        output_file_path = patcher.repackage_apk(temporary_path, apk_file_name, target_file=args.output_file, use_aapt2=args.use_aapt2, keep_keystore=args.keep_keystore)
 
     patcher.print_done('The temporary folder was not deleted. Find it at {0}'.format(temporary_path))
     patcher.print_done('Your file is located at {0}.'.format(output_file_path))
