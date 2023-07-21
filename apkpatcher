@@ -11,6 +11,7 @@ import time
 import signal
 import shutil
 import argparse
+from typing import Any
 import requests
 import zipfile
 from appdirs import user_data_dir, user_cache_dir
@@ -18,7 +19,6 @@ import tempfile
 import subprocess
 
 __version__ = '1.1.0'
-
 
 # noinspection SpellCheckingInspection
 class BColors:
@@ -40,7 +40,41 @@ class BColors:
 
 
 # noinspection PyBroadException,SpellCheckingInspection
+class ExternalDependencies:
+    def __init__(self) -> None:
+        self.dependencies = {}
+        self.required_dependencies = {}
+
+    def add_depedency(self, name, required=True):
+        path = shutil.which(name)
+        if required:
+            self.required_dependencies[name] = bool(path)
+        if not path:
+            return None
+        self.dependencies[name] = path
+        return path
+    
+    def get_depedency(self, name):
+        if name not in self.dependencies:
+            return None
+        return self.dependencies[name]
+    
+    def has_satisfied_required_dependencies(self):
+        for i in self.required_dependencies.values():
+            if not i:
+                return False
+        return True
+    
+    def __getattr__(self, name):
+        return self.get_depedency(name.replace('_', '-'))
+
+
+# noinspection PyBroadException,SpellCheckingInspection
 class Patcher:
+
+    dependencies_manager = None
+
+
     apk_file_path = None
     apk_tmp_dir = None
 
@@ -92,81 +126,6 @@ class Patcher:
     def print_warn(self, msg):
         if self.VERBOSITY >= self.VERBOSITY_LOW:
             sys.stdout.write(BColors.COLOR_RED + '[-] {0}\n'.format(msg) + BColors.ENDC)
-
-    def has_satisfied_dependencies(self, action='all'):
-        flag = True
-        self.print_info('Checking dependencies...')
-
-        # Check Frida
-        try:
-            subprocess.check_output(['frida', '--version'])
-        except Exception:
-            flag = False
-            self.print_warn('Frida is not installed')
-
-        # Check aapt
-        if action in ['all']:
-            try:
-                subprocess.check_output(['aapt', 'version'])
-            except Exception:
-                flag = False
-                self.print_warn('aapt is not installed')
-
-        # Check adb
-        if action in ['all']:
-            try:
-                subprocess.check_output(['adb', '--version'])
-            except Exception:
-                flag = False
-                self.print_warn('adb is not installed')
-
-        # Check apktool
-        if action in ['all']:
-            try:
-                subprocess.check_output(['apktool', '--version'])
-            except Exception:
-                self.print_warn('Apktool is not installed')
-                flag = False
-
-        # Check unxz
-        if action in ['all']:
-            try:
-                subprocess.check_output(['unxz', '--version'])
-            except Exception:
-                flag = False
-                self.print_warn('unxz is not installed')
-
-        # Check keytool
-        if action in ['all']:
-            try:
-                cmd_output = subprocess.check_output(['keytool;echo'], stderr=subprocess.STDOUT, shell=True)
-
-                if b'Key and Certificate' not in cmd_output:
-                    flag = False
-                    self.print_warn('keytool is not installed')
-
-            except Exception:
-                flag = False
-                self.print_warn('keytool is not installed')
-
-        # Check jarsigner
-        if action in ['all']:
-            try:
-                subprocess.check_output(['jarsigner', '-h'], stderr=subprocess.STDOUT)
-            except Exception:
-                flag = False
-                self.print_warn('jarsigner is not installed')
-
-        # Check Zipalign
-        if action in ['all']:
-            cmd_output = subprocess.check_output(['zipalign;echo'],
-                                                 stderr=subprocess.STDOUT, shell=True).decode('utf-8')
-
-            if 'zip alignment' not in cmd_output.lower():
-                flag = False
-                self.print_warn('zipalign is not installed')
-
-        return flag
 
     def update_apkpatcher_gadgets(self):
         if not self.has_satisfied_dependencies():
@@ -347,7 +306,7 @@ class Patcher:
         return base_apk
 
     def has_permission(self, apk_path, permission_name):
-        permissions = subprocess.check_output(['aapt', 'dump', 'permissions', apk_path]).decode('utf-8')
+        permissions = subprocess.check_output([self.dependencies_manager.aapt, 'dump', 'permissions', apk_path]).decode('utf-8')
 
         if permission_name in permissions:
             self.print_info('The app {0} has the permission "{1}"'.format(apk_path, permission_name))
@@ -357,7 +316,7 @@ class Patcher:
             return False
 
     def get_entrypoint_class_name(self, apk_path):
-        dump_lines = subprocess.check_output(['aapt', 'dump', 'badging', apk_path]).decode('utf-8').split('\n')
+        dump_lines = subprocess.check_output([self.dependencies_manager.aapt, 'dump', 'badging', apk_path]).decode('utf-8').split('\n')
         entrypoint_class = None
 
         for line in dump_lines:
@@ -665,9 +624,9 @@ class Patcher:
         self.print_info('This may take some time...')
 
         if bundle_path:
-            apktool_build_cmd = ['apktool', 'b', '-o', bundle_path, base_apk_path, '-f']
+            apktool_build_cmd = [self.dependencies_manager.apktool, 'b', '-o', bundle_path, base_apk_path, '-f']
         else:
-            apktool_build_cmd = ['apktool', 'b', '-o', target_file, base_apk_path, '-f']
+            apktool_build_cmd = [self.dependencies_manager.apktool, 'b', '-o', target_file, base_apk_path, '-f']
         if use_aapt2:
             apktool_build_cmd.insert(1, "--use-aapt2") 
 
@@ -842,9 +801,9 @@ class Patcher:
         if not os.path.isfile(keystorepath):
             self.print_info('Generating a random key...')
             subprocess.call(
-                'keytool -genkey -keyalg RSA -keysize 2048 -validity 700 -noprompt -alias apkpatcheralias1 -dname '
-                '"CN=apk.patcher.com, OU=ID, O=APK, L=Patcher, S=Patch, C=BR" -keystore {0} '
-                '-storepass password -keypass password'.format(keystorepath),
+                '{0} -genkey -keyalg RSA -keysize 2048 -validity 700 -noprompt -alias apkpatcheralias1 -dname '
+                '"CN=apk.patcher.com, OU=ID, O=APK, L=Patcher, S=Patch, C=BR" -keystore {1} '
+                '-storepass password -keypass password'.format(self.dependencies_manager.keytool, keystorepath),
                 shell=True)
         
         for apk in apk_paths:
@@ -853,15 +812,15 @@ class Patcher:
 
             self.print_info('Signing {0}...'.format(apk))
             subprocess.call(
-                'jarsigner -sigalg SHA1withRSA -digestalg SHA1 -keystore {0} '
-                '-storepass password {1} apkpatcheralias1'.format(keystorepath, apk),
+                '{0} -sigalg SHA1withRSA -digestalg SHA1 -keystore {1} '
+                '-storepass password {2} apkpatcheralias1'.format(self.dependencies_manager.jarsigner, keystorepath, apk),
                 shell=True)
 
             self.print_info('The apk was signed!')
             self.print_info('Optimizing with zipalign...')
             tmp_target_file = apk.replace('.apk', '_tmp.apk')
             shutil.move(apk, tmp_target_file)
-            subprocess.call('zipalign 4 {0} {1}'.format(tmp_target_file, apk), stderr=subprocess.STDOUT, shell=True)
+            subprocess.call('{0} 4 {1} {2}'.format(self.dependencies_manager.zipalign, tmp_target_file, apk), stderr=subprocess.STDOUT, shell=True)
 
             os.remove(tmp_target_file)
             self.print_info('The file was optimized!')
@@ -884,7 +843,7 @@ class Patcher:
         return int(''.join(["{num:03d}".format(num=int(i)) for i in version_split]))
 
     def min_frida_version(self, min_version):
-        frida_version = subprocess.check_output(['frida', '--version']).strip().decode('utf-8')
+        frida_version = subprocess.check_output([self.dependencies_manager.frida, '--version']).strip().decode('utf-8')
 
         if self.get_int_frida_version(frida_version) < self.get_int_frida_version(min_version):
             return False
@@ -961,13 +920,40 @@ def main():
 
         return 1
     
+    dependencies_manager = ExternalDependencies()
+
+    # optional depedency
+    dependencies_manager.add_depedency('frida')
+    
     if args.version:
         patcher.set_verbosity(patcher.VERBOSITY_HIGH)
 
-        frida_version = subprocess.check_output(['frida', '--version']).strip().decode('utf-8')
-        patcher.print_info('frida {0}'.format(frida_version))
+        if dependencies_manager.frida:
+            frida_version = subprocess.check_output([dependencies_manager.frida, '--version']).strip().decode('utf-8')
+            patcher.print_info('frida {0}'.format(frida_version))
         patcher.print_done('apkpatcher {0}'.format(__version__))
         return 1
+
+    if not dependencies_manager.add_depedency('aapt'):
+        patcher.print_warn('aapt is not installed')
+    if not dependencies_manager.add_depedency('adb'):
+        patcher.print_warn('adb is not installed')
+    if not dependencies_manager.add_depedency('apktool'):
+        patcher.print_warn('apktool is not installed')
+    if not dependencies_manager.add_depedency('unxz'):
+        patcher.print_warn('unxz is not installed')
+    if not dependencies_manager.add_depedency('keytool'):
+        patcher.print_warn('keytool is not installed')
+    if not dependencies_manager.add_depedency('jarsigner'):
+        patcher.print_warn('jarsigner is not installed')
+    if not dependencies_manager.add_depedency('zipalign'):
+        patcher.print_warn('zipalign is not installed')
+    
+    if not dependencies_manager.has_satisfied_required_dependencies():
+        patcher.print_warn('One or more dependencies were not satisfied.')
+        return
+    
+    patcher.dependencies_manager = dependencies_manager
 
     if args.verbosity:
         patcher.set_verbosity(int(args.verbosity))
@@ -989,11 +975,6 @@ def main():
             patcher.print_warn("The file {0} couldn't be found!".format(args.apk))
 
             return 1
-
-    if not patcher.has_satisfied_dependencies('all'):
-        patcher.print_warn('One or more dependencies were not satisfied.')
-
-        return 1
 
     gadget_to_use = None
     if not args.prevent_frida_gadget:
@@ -1044,10 +1025,12 @@ def main():
         patcher.insert_frida_loader(entrypoint_smali_path)
 
         if args.autoload_script or args.codeshare:
-            if not patcher.min_frida_version('10.6.33'):
-                patcher.print_warn('Autoload is not supported in this version of frida. Update it!')
-
-                return 1
+            if dependencies_manager.frida:
+                if not patcher.min_frida_version('10.6.33'):
+                    patcher.print_warn('Autoload is not supported in this version of frida. Update it!')
+                    return 1
+                else:
+                    patcher.print_warn('Couldn\'t fetch frida version. Autoload might not be supported on the device')
 
             script_file = args.autoload_script or patcher.get_codeshare(args.codeshare)
 
