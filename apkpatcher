@@ -17,6 +17,8 @@ from appdirs import user_data_dir, user_cache_dir
 import tempfile
 import subprocess
 
+__version__ = '1.0.0'
+
 
 # noinspection SpellCheckingInspection
 class BColors:
@@ -944,6 +946,8 @@ def main():
 
     parser.add_argument('-o', '--output-file', help='Specify the output file (patched)')
 
+    parser.add_argument('--version', help='Display information about the version', action='store_true')
+
     group = parser.add_argument_group('Execute command before repackage')
     group.add_argument('-x', '--exec-before-repackage', help='Specify a command to execute before repackage')
 
@@ -955,6 +959,14 @@ def main():
     if len(sys.argv) == 1:
         parser.print_help()
 
+        return 1
+    
+    if args.version:
+        patcher.set_verbosity(patcher.VERBOSITY_HIGH)
+
+        frida_version = subprocess.check_output(['frida', '--version']).strip().decode('utf-8')
+        patcher.print_info('frida {0}'.format(frida_version))
+        patcher.print_done('apkpatcher {0}'.format(__version__))
         return 1
 
     if args.verbosity:
