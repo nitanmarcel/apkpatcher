@@ -82,11 +82,15 @@ For all usages, the output file will be something like <apkname>_patched.apk.
   When you open the app, it will automatically load the hook script.
 
 - ##### Autoload script from frida codeshare
-Same as the above, but this time automatically download the script from [codeshare.frida.re](https://codeshare.frida.re).
+  Same as the above, but this time automatically download the script from [codeshare.frida.re](https://codeshare.frida.re).
 
-```
-apkpatcher -a base.apk --codeshare user/hook
-```
+  ```
+  apkpatcher -a base.apk --codeshare user/hook
+  ```
+
+- ##### Load a shared library instead of the frida gadget
+  You may also load a custom shared library (e.g compiled with frida-deepfreeze-rs) instead of a frida gadget
+  `apkpatcher -a base.apk --lib my_lib.so`
 
 - ##### Enable User Certificate Authorities
   When analyzing android apps, you may want to intercept it's HTTPS traffic with some proxy like Burp Suite. Since Android 7 - Nougat, apps that the target API Level is 24 and above no longer trust in user-added CAs. In order to bypass this restriction, you can patch the APK to insert a network configuration. APK Patcher can do this automatically for you. Use the following command
