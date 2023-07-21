@@ -258,13 +258,10 @@ class Patcher:
         gadgets_folder = os.path.join(current_folder, 'gadgets')
         target_folder = os.path.join(gadgets_folder, frida_version)
 
-        if os.path.isdir(target_folder):
-            dir_list = os.listdir(target_folder)
-            gadget_files = [f for f in dir_list if os.path.isfile(os.path.join(target_folder, f))]
-        else:
-            self.print_warn('Gadget folder not found. Try "python {0} --update-gadgets"'.format(sys.argv[0]))
-            return ret
-
+        if not os.path.isdir(target_folder):
+            self.update_apkpatcher_gadgets()
+        dir_list = os.listdir(target_folder)
+        gadget_files = [f for f in dir_list if os.path.isfile(os.path.join(target_folder, f))]
         if abi in ['armeabi', 'armeabi-v7a']:
             for gadget_file in gadget_files:
                 if 'arm' in gadget_file and '64' not in gadget_file:
