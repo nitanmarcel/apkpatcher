@@ -17,7 +17,7 @@ from appdirs import user_data_dir, user_cache_dir
 import tempfile
 import subprocess
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 
 # noinspection SpellCheckingInspection
