@@ -923,7 +923,7 @@ def main():
     dependencies_manager = ExternalDependencies()
 
     # optional depedency
-    dependencies_manager.add_depedency('frida', required=False)
+    dependencies_manager.add_depedency('frida')
     
     if args.version:
         patcher.set_verbosity(patcher.VERBOSITY_HIGH)
