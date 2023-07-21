@@ -11,6 +11,7 @@ import shutil
 import os.path
 import argparse
 import requests
+from appdirs import user_data_dir, user_cache_dir
 import tempfile
 import subprocess
 
@@ -38,6 +39,16 @@ class BColors:
 class Patcher:
     apk_file_path = None
     apk_tmp_dir = None
+
+    appname = 'apkpatcher'
+    appauthor = 'nitanmarcel'
+
+    data_dir = user_data_dir(appname, appauthor)
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+    cache_dir = user_cache_dir(appname, appauthor)
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
 
     VERBOSITY_LOW = 1   # only 'error' and 'done' messages
     VERBOSITY_MID = 2   # 'adding' messages too
@@ -185,8 +196,7 @@ class Patcher:
 
                 list_gadgets.append(gadget)
 
-        current_folder = os.path.dirname(os.path.abspath(__file__))
-        gadgets_folder = os.path.join(current_folder, 'gadgets')
+        gadgets_folder = os.path.join(self.data_dir, 'gadgets')
         target_folder = os.path.join(gadgets_folder, frida_version)
 
         if not os.path.isdir(target_folder):
@@ -254,8 +264,7 @@ class Patcher:
         self.print_info('The abi is {0}'.format(abi))
 
         frida_version = subprocess.check_output(['frida', '--version']).strip().decode('utf-8')
-        current_folder = os.path.dirname(os.path.abspath(__file__))
-        gadgets_folder = os.path.join(current_folder, 'gadgets')
+        gadgets_folder = os.path.join(self.data_dir, 'gadgets')
         target_folder = os.path.join(gadgets_folder, frida_version)
 
         if not os.path.isdir(target_folder):
@@ -755,22 +764,22 @@ class Patcher:
         return target_path
 
     def sign_and_zipalign(self, apk_path, keep_keystore):
-        if not os.path.isfile("apkpatcherkeystore"):
+        keystorepath = os.path.join(self.cache_dir, 'apkpatcherkeystore')
+        if not os.path.isfile(keystorepath):
             self.print_info('Generating a random key...')
             subprocess.call(
                 'keytool -genkey -keyalg RSA -keysize 2048 -validity 700 -noprompt -alias apkpatcheralias1 -dname '
-                '"CN=apk.patcher.com, OU=ID, O=APK, L=Patcher, S=Patch, C=BR" -keystore apkpatcherkeystore '
-                '-storepass password -keypass password 2> /dev/null',
+                '"CN=apk.patcher.com, OU=ID, O=APK, L=Patcher, S=Patch, C=BR" -keystore {0} '
+                '-storepass password -keypass password 2> /dev/null'.format(keystorepath),
                 shell=True)
-
         self.print_info('Signing the patched apk...')
         subprocess.call(
-            'jarsigner -sigalg SHA1withRSA -digestalg SHA1 -keystore apkpatcherkeystore '
-            '-storepass password {0} apkpatcheralias1 >/dev/null 2>&1'.format(apk_path),
+            'jarsigner -sigalg SHA1withRSA -digestalg SHA1 -keystore {0} '
+            '-storepass password {1} apkpatcheralias1 >/dev/null 2>&1'.format(keystorepath, apk_path),
             shell=True)
 
         if not keep_keystore:
-            os.remove('apkpatcherkeystore')
+            os.remove(keystorepath)
 
         self.print_info('The apk was signed!')
         self.print_info('Optimizing with zipalign...')
@@ -804,8 +813,7 @@ class Patcher:
 
         return True
 
-    @staticmethod
-    def get_default_config_file():
+    def get_default_config_file(self):
         config = '''
 {
     "interaction": {
@@ -817,7 +825,7 @@ class Patcher:
 }
         '''
 
-        path = os.path.join(os.getcwd(), 'generatedConfigFile.config')
+        path = os.path.join(self.cache_dir, 'generatedConfigFile.config')
         f = open(path, 'w')
 
         f.write(config)
