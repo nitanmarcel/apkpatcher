@@ -35,18 +35,7 @@ If you have Android Studio installed, you will find aapt, zipalign and adb insid
 A lot of tools used by APK Patcher require Java, so I suppose you will have it installed. Both `jarsigner` and `keytool` will probably come with your java installation. In my case I can find both tools in `/usr/lib/jvm/default/bin/` 
 
 ##### APK Patcher Installation
-Clone the repository:
-```
-cd ~/Tools/
-git clone https://github.com/badadaf/apkpatcher
-```
-
-Add the script to your PATH variable in `.bashrc`
-```
-export PATH=$PATH:/home/user/Tools/apkpatcher
-```
-
-Reopen your terminal to load `.bashrc`
+`pip install apkpatcher-cli`
 
 #### How To Use It
 For all usages, the output file will be something like <apkname>_patched.apk.
@@ -58,7 +47,8 @@ For all usages, the output file will be something like <apkname>_patched.apk.
   apkpatcher --update-gadgets
   ```
 
-
+- ##### Bundles
+  apkpatcher supports bundles out of the box by just passing the bundle path.
 
 - ##### Inserting Frida Gadget
   In order to insert Frida library in APK, **enable USB debugging in your device and connect it in your PC**. APK Patcher will **identify your device** architecture and **insert the right gadget**.
@@ -72,6 +62,7 @@ For all usages, the output file will be something like <apkname>_patched.apk.
   ```
 
   When you open the app, the Android screen will stay freezed. The frida gadget has started and is waiting for connection. Connect with the command `frida -U -n Gadget`
+
 - ##### Autoload Script
   You can insert the hook script inside the apk and make it load automatically, without requiring to use frida client.
   
@@ -89,6 +80,13 @@ For all usages, the output file will be something like <apkname>_patched.apk.
   ```
 
   When you open the app, it will automatically load the hook script.
+
+- ##### Autoload script from frida codeshare
+Same as the above, but this time automatically download the script from [codeshare.frida.re](https://codeshare.frida.re).
+
+```
+apkpatcher -a base.apk --codeshare user/hook
+```
 
 - ##### Enable User Certificate Authorities
   When analyzing android apps, you may want to intercept it's HTTPS traffic with some proxy like Burp Suite. Since Android 7 - Nougat, apps that the target API Level is 24 and above no longer trust in user-added CAs. In order to bypass this restriction, you can patch the APK to insert a network configuration. APK Patcher can do this automatically for you. Use the following command
