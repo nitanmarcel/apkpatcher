@@ -21,7 +21,7 @@ from appdirs import user_cache_dir, user_data_dir
 
 import jdk
 
-__version__ = '1.3.4'
+__version__ = '1.3.5'
 
 APK_TOOL_VERSION = '2.8.0'
 APK_SIGNER_VERSION = '1.3.0'
@@ -286,7 +286,7 @@ class Patcher:
                 ['adb', 'shell', 'getprop ro.product.cpu.abi']).decode('utf-8').strip()
         if abi not in ['armeabi-v7a', 'arm64', 'x86', 'x86_64']:
             self.print_warn(
-                'Architecture {0} if not one of the supported architectures arm64-v8a, arm64, x86, x86_64'.format(abi))
+                'Architecture {0} if not one of the supported architectures armeabi-v7a, arm64, x86, x86_64'.format(abi))
             sys.exit(0)
         if abi in ['armeabi-v7a']:
             return self.ARCH_ARM
@@ -1061,7 +1061,7 @@ def main():
         '-a', '--apk', help='Specify the apk you want to patch')
     parser.add_argument('-g', '--gadget', help='Specify the frida-gadget file')
     parser.add_argument(
-        '--arch', help='Force architecture to inject frida gadget for. Supported arches: arm64-v8a, arm64, x86, x86_64')
+        '--arch', help='Force architecture to inject frida gadget for. Supported arches: armeabi-v7a, arm64, x86, x86_64')
     parser.add_argument('--autoload-script', help='Auto load script')
     parser.add_argument("--codeshare", help='Auto load script from codeshare')
     parser.add_argument('-v', '--verbosity',
