@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
    name='apkpatcher-cli',
-   version='1.2.0',
+   version='1.3.1',
    description='Automate the task of patching an apk with frida-gadget. fork of badadaf/apkpatcher',
    author='Marcel Alexandru Nitan',
    author_email='nitan.marcel@gmail.com',
