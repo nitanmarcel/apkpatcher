@@ -17,12 +17,26 @@ Frida Github: https://github.com/frida/frida
 ##### Dependencies
 Starting with 1.2.0 only `java` is a required dependencies, with `frida` and `adb` as optional dependencies.
 
-
 - java (required)
 - adb (optional to automatically detect target architecture)
 
+##### Termux
+
+ Termux has 2 extra dependencies.
+
+ - custom apktool - https://github.com/rendiix/termux-apktool
+    - install the apktool for your arch then pass if to `apkpatcher` with `--apktool /data/data/com.termux/files/usr/bin/apktool.jar`
+ 
+ - custom zipalign version - https://github.com/rendiix/termux-zipalign
+    - it should will be automatically detected and used by `apkpatcher`
+  
+
 ##### APK Patcher Installation
 `pip install apkpatcher-cli`
+
+#### Termux
+ Termux require a custom apktool jar file then used with the app by calling `apkpatcher` with `--apktool /path/to/apktool.jar` argument
+ 
 
 #### How To Use It
 For all usages, the output file will be something like <apkname>_patched.apk.

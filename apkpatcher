@@ -223,9 +223,10 @@ class Patcher:
         if self.VERBOSITY >= self.VERBOSITY_HIGH:
             sys.stdout.write('\n')
 
-    def check_and_download_tools(self):
-        apktool_path = os.path.join(
-            self.data_dir, 'apktool_{0}.jar'.format(APK_TOOL_VERSION))
+    def check_and_download_tools(self, apktool_path=None):
+        if not apktool_path:
+            apktool_path = os.path.join(
+                self.data_dir, 'apktool_{0}.jar'.format(APK_TOOL_VERSION))
         if not os.path.isfile(apktool_path):
             old_apktool = Path(self.data_dir).glob('apktool*.jar')
             for i in old_apktool:
@@ -953,8 +954,13 @@ class Patcher:
     def sign_and_zipalign(self, apk_path):
         self.print_info('Signing apk files...')
 
-        subprocess.call('{0} -jar {1} -a {2} --allowResign --overwrite'.format(self.dependencies_manager.java,
-                        self.dependencies_manager.uber_apk_signer, apk_path), shell=True, stdout=subprocess.DEVNULL)
+        if self.dependencies_manager.zipalign:
+            cmd = '{0} -jar {1} -a {2} --allowResign --overwrite --zipAlignPath {3}'.format(self.dependencies_manager.java,
+                        self.dependencies_manager.uber_apk_signer, apk_path, self.dependencies_manager.zipalign)
+        else:
+            cmd = '{0} -jar {1} -a {2} --allowResign --overwrite'.format(self.dependencies_manager.java,
+                        self.dependencies_manager.uber_apk_signer, apk_path)
+        subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL)
         idsig_files = Path(apk_path).glob('*.idsig')
         for i in idsig_files:
             os.remove(i)
@@ -1050,6 +1056,8 @@ def main():
 
     parser.add_argument('-o', '--output-file',
                         help='Specify the output file (patched)')
+    
+    parser.add_argument('--apktool', help='Use custom apk tool jar file')
 
     parser.add_argument(
         '--version', help='Display information about the version', action='store_true')
@@ -1081,6 +1089,9 @@ def main():
 
     dependencies_manager.add_depedency('frida', required=False)
     dependencies_manager.add_depedency('adb', required=False)
+
+    # Fix on termux
+    dependencies_manager.add_depedency('zipalign', required=False)
 
     if not dependencies_manager.has_satisfied_required_dependencies():
         patcher.print_warn('One or more dependencies were not satisfied.')
@@ -1123,7 +1134,7 @@ def main():
 
             return 1
 
-    patcher.check_and_download_tools()
+    patcher.check_and_download_tools(apktool_path=args.apktool)
 
     # THE APK PATCHING STARTS HERE
 
