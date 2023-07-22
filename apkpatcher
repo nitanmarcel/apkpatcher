@@ -106,7 +106,7 @@ class Patcher:
     ARCH_ARM = 'arm'
     ARCH_ARM64 = 'arm64'
     ARCH_X86 = 'x86'
-    ARCH_X64 = 'x64'
+    ARCH_X64 = 'x86_64'
 
     DEFAULT_GADGET_NAME = 'libfrida-gadget.so'
     DEFAULT_CONFIG_NAME = 'libfrida-gadget.config.so'
@@ -190,6 +190,7 @@ class Patcher:
         for downloaded_file in downloaded_files:
             with lzma.open(downloaded_file) as f, open(downloaded_file.replace(".xz", ""), "wb") as outfile:
                 outfile.write(f.read())
+            os.remove(downloaded_file)
 
         self.print_done('Done! Gadgets were updated')
 
@@ -294,11 +295,10 @@ class Patcher:
             return self.ARCH_ARM64
         if abi in ['x86']:
             return self.ARCH_X86
-        if abi in ['x64']:
+        if abi in ['x64', 'x86_64']:
             return self.ARCH_X64
 
     def get_recommended_gadget(self, abi=None):
-        ret = None
 
         if self.dependencies_manager.adb and abi is None:
             self.print_info('Trying to identify the right frida-gadget...')
@@ -316,52 +316,33 @@ class Patcher:
                     'Architecture {0} if not one of the supported architectures arm, arm64, x86, x86_64'.format(abi))
                 sys.exit(0)
 
-        self.print_info('The abi is {0}'.format(abi))
+        arch = None
+        if abi in ['armeabi', 'armeabi-v7a', 'arm']:
+            arch = self.ARCH_ARM
+        elif abi in ['arm64', 'arm64-v8a']:
+            arch = self.ARCH_ARM64
+        elif abi in ['x86']:
+            arch = self.ARCH_X86
+        elif abi in ['x86_64', 'x64']:
+            arch = self.ARCH_X64
+        else:
+            return None
+
+
+        self.print_info('The architecture is {0}'.format(arch))
 
         frida_version = self.get_frida_version()
-        gadgets_folder = os.path.join(self.data_dir, 'gadgets')
-        target_folder = os.path.join(gadgets_folder, frida_version)
 
-        if not os.path.isdir(target_folder):
+        gadget_file = 'frida-gadget-{0}-android-{1}.so'.format(frida_version, arch)
+
+        gadgets_folder = os.path.join(self.data_dir, 'gadgets', frida_version)
+        if not os.path.isdir(gadgets_folder):
             self.update_apkpatcher_gadgets()
-        dir_list = os.listdir(target_folder)
-        gadget_files = [f for f in dir_list if os.path.isfile(
-            os.path.join(target_folder, f))]
-        if abi in ['armeabi', 'armeabi-v7a', 'arm']:
-            for gadget_file in gadget_files:
-                if 'arm' in gadget_file and '64' not in gadget_file:
-                    full_path = os.path.join(target_folder, gadget_file)
-                    ret = full_path
-                    break
-
-        elif abi == 'arm64-v8a' or 'arm64' in abi:
-            for gadget_file in gadget_files:
-                if 'arm64' in gadget_file:
-                    full_path = os.path.join(target_folder, gadget_file)
-                    ret = full_path
-                    break
-
-        elif abi == 'x86':
-            for gadget_file in gadget_files:
-                if 'i386' in gadget_file:
-                    full_path = os.path.join(target_folder, gadget_file)
-                    ret = full_path
-                    break
-
-        elif abi == 'x86_64':
-            for gadget_file in gadget_files:
-                if 'x86_64' in gadget_file:
-                    full_path = os.path.join(target_folder, gadget_file)
-                    ret = full_path
-                    break
-
-        if ret is None:
-            self.print_warn('No recommended gadget file was found.')
-        else:
-            self.print_info(
-                'Architecture identified ({0}). Gadget was selected.' .format(abi))
-
-        return ret
+        
+        gadget_path = os.path.join(gadgets_folder, gadget_file)
+        if os.path.isfile(gadget_path):
+            return gadget_path
+        return None
 
     def extract_apk(self, apk_path, destination_path, extract_resources=True):
         if extract_resources:
@@ -1161,6 +1142,8 @@ def main():
             patcher.print_warn('Could not identify the gadget!')
 
             return 1
+        
+        patcher.print_info('Using gadget {0}'.format(gadget_to_use))
 
     # THE APK PATCHING STARTS HERE
 
