@@ -180,18 +180,18 @@ class Patcher:
             gadget_file_path = os.path.join(target_folder, gadget['name'])
 
             if os.path.isfile(gadget_file_path.replace('.xz', '')):
-                print(f'{gadget["name"]} already exists. Skipping.')
+                self.print_info(f'{gadget["name"]} already exists. Skipping.')
             else:
                 self.download_file(gadget['url'], gadget_file_path)
                 downloaded_files.append(gadget_file_path)
 
-        print('Extracting downloaded files...')
+        self.print_info('Extracting downloaded files...')
 
         for downloaded_file in downloaded_files:
             with lzma.open(downloaded_file) as f, open(downloaded_file.replace(".xz", ""), "wb") as outfile:
                 outfile.write(f.read())
 
-        print('Done! Gadgets were updated')
+        self.print_done('Done! Gadgets were updated')
 
         return True
 
@@ -597,7 +597,7 @@ class Patcher:
 
     def set_extract_native_libs(self, manifest_path):
         if not os.path.isfile(manifest_path):
-            print("Couldn't find the Manifest file. Something is wrong with the apk!")
+            self.print_warn("Couldn't find the Manifest file. Something is wrong with the apk!")
             return
 
         tree = ET.parse(manifest_path)
@@ -620,7 +620,7 @@ class Patcher:
 
     def fix_target_sdk(self, apk_path, manifest_path):
         if not os.path.isfile(manifest_path):
-            print("Couldn't find the Manifest file. Something is wrong with the apk!")
+            self.print_warn("Couldn't find the Manifest file. Something is wrong with the apk!")
             return
 
     def get_arch_by_gadget(self, gadget_path):
