@@ -14,6 +14,7 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET
 import zipfile
+import json
 from pathlib import Path
 
 import requests
@@ -1006,22 +1007,21 @@ class Patcher:
         return True
 
     def get_default_config_file(self):
-        config = '''
-{
-    "interaction": {
-        "type": "script",
-        "address": "127.0.0.1",
-        "port": 27042,
-        "path": "./libhook.js.so"
-    }
-}
-        '''
+        config = {
+                "interaction": 
+                {
+                    "type": "script",
+                    "address": "127.0.0.1",
+                    "port": 27042,
+                    "path": "./libhook.js.so",
+                    "on_port_conflict": "pick-next",
+                    "on_load": "resume"
+                }
+        }
 
         path = os.path.join(self.cache_dir, 'generatedConfigFile.config')
-        f = open(path, 'w')
-
-        f.write(config)
-        f.close()
+        with open(path, 'w') as f:
+            f.write(json.dumps(config))
 
         return path
 
