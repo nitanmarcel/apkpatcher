@@ -929,8 +929,6 @@ def main():
     parser.add_argument("--codeshare", help='Auto load script from codeshare')
     parser.add_argument('-v', '--verbosity', help='Verbosity level (0 to 3). Default is 3')
     parser.add_argument('--update-gadgets', help='Update frida-gadgets', action='store_true')
-    parser.add_argument('-r', '--no-resources', help='Do not extract resources',
-                        action='store_true')
     parser.add_argument('--use-aapt2', help='Use aapt2 with apktool',
                         action='store_true')
 
@@ -1032,17 +1030,7 @@ def main():
     if not args.prevent_frida_gadget:
         has_internet_permission = patcher.has_permission(apk_file_path, patcher.INTERNET_PERMISSION)
 
-    if args.no_resources:
-        if not args.prevent_frida_gadget or args.lib:
-            patcher.print_warn('Can\'t inject frida or libraries without extracting resources. https://github.com/iBotPeaches/Apktool/issues/3081')
-            sys.exit(1)
-        if args.enable_user_certificates:
-            patcher.print_warn('Can\'t enable user certificates without extracting resources. https://github.com/iBotPeaches/Apktool/issues/3081')
-            sys.exit(1)
-        patcher.extract_apk(apk_file_path, temporary_path, extract_resources=False)
-
-    else:
-        patcher.extract_apk(apk_file_path, temporary_path, extract_resources=True)
+    patcher.extract_apk(apk_file_path, temporary_path, extract_resources=True)
 
     if not args.prevent_frida_gadget and not has_internet_permission:
         patcher.inject_permission_manifest(temporary_path, patcher.INTERNET_PERMISSION)
@@ -1122,10 +1110,9 @@ def main():
             os.system(command_to_execute)
 
 
-    if not args.no_resources:
-        manifest_path = os.path.join(temporary_path, 'AndroidManifest.xml')
-        patcher.set_extract_native_libs(manifest_path)
-
+    manifest_path = os.path.join(temporary_path, 'AndroidManifest.xml')
+    patcher.set_extract_native_libs(manifest_path)
+    
     if patcher.is_bundle:
         output_file_path = patcher.repackage_apk(temporary_path, apk_file_name, target_file=args.output_file, bundle_path=apk_file_path, use_aapt2=args.use_aapt2)
     else:
