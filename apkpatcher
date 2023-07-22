@@ -284,11 +284,11 @@ class Patcher:
             os.system('adb wait-for-device')
             abi = subprocess.check_output(
                 ['adb', 'shell', 'getprop ro.product.cpu.abi']).decode('utf-8').strip()
-        if abi not in ['armeabi-v7a', 'arm64', 'x86', 'x86_64']:
+        if abi not in ['arm', 'arm64', 'x86', 'x86_64']:
             self.print_warn(
-                'Architecture {0} if not one of the supported architectures armeabi-v7a, arm64, x86, x86_64'.format(abi))
+                'Architecture {0} if not one of the supported architectures arm, arm64, x86, x86_64'.format(abi))
             sys.exit(0)
-        if abi in ['armeabi-v7a']:
+        if abi in ['arm']:
             return self.ARCH_ARM
         if abi in ['arm64']:
             return self.ARCH_ARM64
@@ -311,9 +311,9 @@ class Patcher:
                 'Can\'t automatically detect device architecture. Use the --arch argument instead. (missing adb command)')
             sys.exit(1)
         else:
-            if abi not in ['armeabi-v7a', 'arm64', 'x86', 'x86_64']:
+            if abi not in ['arm', 'arm64', 'x86', 'x86_64']:
                 self.print_warn(
-                    'Architecture {0} if not one of the supported architectures armeabi-v7a, arm64, x86, x86_64'.format(abi))
+                    'Architecture {0} if not one of the supported architectures arm, arm64, x86, x86_64'.format(abi))
                 sys.exit(0)
 
         self.print_info('The abi is {0}'.format(abi))
@@ -327,7 +327,7 @@ class Patcher:
         dir_list = os.listdir(target_folder)
         gadget_files = [f for f in dir_list if os.path.isfile(
             os.path.join(target_folder, f))]
-        if abi in ['armeabi', 'armeabi-v7a']:
+        if abi in ['armeabi', 'armeabi-v7a', 'arm']:
             for gadget_file in gadget_files:
                 if 'arm' in gadget_file and '64' not in gadget_file:
                     full_path = os.path.join(target_folder, gadget_file)
@@ -1061,7 +1061,7 @@ def main():
         '-a', '--apk', help='Specify the apk you want to patch')
     parser.add_argument('-g', '--gadget', help='Specify the frida-gadget file')
     parser.add_argument(
-        '--arch', help='Force architecture to inject frida gadget for. Supported arches: armeabi-v7a, arm64, x86, x86_64')
+        '--arch', help='Force architecture to inject frida gadget for. Supported arches: arm, arm64, x86, x86_64')
     parser.add_argument('--autoload-script', help='Auto load script')
     parser.add_argument("--codeshare", help='Auto load script from codeshare')
     parser.add_argument('-v', '--verbosity',
