@@ -5,6 +5,7 @@ import argparse
 import json
 import lzma
 import os
+import glob
 import shutil
 import signal
 import subprocess
@@ -18,10 +19,13 @@ from pathlib import Path
 import requests
 from appdirs import user_cache_dir, user_data_dir
 
+import jdk
+
 __version__ = '1.3.3'
 
 APK_TOOL_VERSION = '2.8.0'
 APK_SIGNER_VERSION = '1.3.0'
+JAVA_JDK_VERSION = 17
 
 # noinspection SpellCheckingInspection
 
@@ -223,7 +227,30 @@ class Patcher:
         if self.VERBOSITY >= self.VERBOSITY_HIGH:
             sys.stdout.write('\n')
 
+    def find_java(self):
+        base_path = self.dependencies_manager.java
+        if not os.path.exists(base_path):
+            return None
+        else:
+            if os.path.isfile(base_path):
+                return base_path
+            else:
+                pattern = os.path.join(base_path, "jdk-17*", "bin", "java")
+                java_paths = glob.glob(pattern)
+                if java_paths:
+                    return java_paths[-0]
+            return None
+        
+
+
     def check_and_download_tools(self, apktool_path=None):
+        java_path = self.find_java()
+        if not java_path:
+            self.print_info('Downloading java. This might take a while...')
+            jdk.install(17, path=self.dependencies_manager.java)
+        java_path = self.find_java()
+        self.dependencies_manager.add_depedency('java', java_path)
+
         if not apktool_path:
             apktool_path = os.path.join(
                 self.data_dir, 'apktool_{0}.jar'.format(APK_TOOL_VERSION))
@@ -1084,18 +1111,14 @@ def main():
         return 1
 
     if not dependencies_manager.add_depedency('java'):
-        patcher.print_warn('java is not installed')
-        return 1
+        java_path = os.path.join(patcher.data_dir, 'jdk')
+        dependencies_manager.add_depedency('java', path=java_path)
 
     dependencies_manager.add_depedency('frida', required=False)
     dependencies_manager.add_depedency('adb', required=False)
 
     # Fix on termux
     dependencies_manager.add_depedency('zipalign', required=False)
-
-    if not dependencies_manager.has_satisfied_required_dependencies():
-        patcher.print_warn('One or more dependencies were not satisfied.')
-        return
 
     patcher.dependencies_manager = dependencies_manager
 
@@ -1104,9 +1127,14 @@ def main():
     else:
         patcher.set_verbosity(patcher.VERBOSITY_HIGH)
 
+    patcher.check_and_download_tools(apktool_path=args.apktool)
+
+    if not dependencies_manager.has_satisfied_required_dependencies():
+        patcher.print_warn('One or more dependencies were not satisfied.')
+        return
+    
     if args.update_gadgets:
         patcher.update_apkpatcher_gadgets()
-
         return 0
 
     if not args.apk:
@@ -1133,8 +1161,6 @@ def main():
             patcher.print_warn('Could not identify the gadget!')
 
             return 1
-
-    patcher.check_and_download_tools(apktool_path=args.apktool)
 
     # THE APK PATCHING STARTS HERE
 

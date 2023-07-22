@@ -17,7 +17,7 @@ Frida Github: https://github.com/frida/frida
 ##### Dependencies
 Starting with 1.2.0 only `java` is a required dependency, with `Frida` and `adb` as optional dependencies.
 
-- java (required)
+- java (optional and will be automatically installed if it doesn't exist)
 - adb (optional to automatically detect target architecture)
 
 ##### Termux

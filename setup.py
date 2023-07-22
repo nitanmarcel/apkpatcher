@@ -11,7 +11,8 @@ setup(
    scripts=['apkpatcher'],
    install_requires=[
        'requests',
-       'appdirs'
+       'appdirs',
+       'install-jdk'
    ],
    classifiers=[
     'License :: OSI Approved :: GNU General Public License v2 (GPLv2)',
