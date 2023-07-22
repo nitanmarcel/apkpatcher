@@ -19,7 +19,6 @@ Starting with 1.2.0 only `java` is a required dependencies, with `frida` and `ad
 
 
 - java (required)
-- frida and frida-tools: `pip3 install frida frida-tools` (optional to install frida gadget/scripts into the target application)
 - adb (optional to automatically detect target architecture)
 
 ##### APK Patcher Installation
