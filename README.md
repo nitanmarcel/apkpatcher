@@ -25,7 +25,7 @@ Starting with 1.2.0 only `java` is a required dependencies, with `frida` and `ad
  Termux has 2 extra dependencies.
 
  - custom apktool - https://github.com/rendiix/termux-apktool
-    - install the apktool for your arch then pass if to `apkpatcher` with `--apktool /data/data/com.termux/files/usr/bin/apktool.jar`
+    - install the apktool for your arch then pass it to `apkpatcher` with `--apktool /data/data/com.termux/files/usr/bin/apktool.jar`
  
  - custom zipalign version - https://github.com/rendiix/termux-zipalign
     - it should will be automatically detected and used by `apkpatcher`
