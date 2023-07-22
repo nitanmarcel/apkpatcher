@@ -15,24 +15,12 @@ Frida Github: https://github.com/frida/frida
 
 #### How To Install
 ##### Dependencies
-The only Python dependency is `requests`, that is used to parse Github API in order to download Frida Gadgets.
+Starting with 1.2.0 only `java` is a required dependencies, with `frida` and `adb` as optional dependencies.
 
-But in order to make the script work properly, some other tools are required.
 
-Make sure the following tools are **installed** and **properly configured in your PATH** environment variable:
-
-- frida and frida-tools: `pip3 install frida frida-tools`
-- apktool - https://ibotpeaches.github.io/Apktool/install/
-- unxz
-- aapt
-- zipalign
-- adb
-- keytool
-- jarsigner
-
-If you have Android Studio installed, you will find aapt, zipalign and adb inside `~/Android/Sdk/build-tools/` or `~/Android/Sdk/build-tools/platform-tools/`
-
-A lot of tools used by APK Patcher require Java, so I suppose you will have it installed. Both `jarsigner` and `keytool` will probably come with your java installation. In my case I can find both tools in `/usr/lib/jvm/default/bin/` 
+- java (required)
+- frida and frida-tools: `pip3 install frida frida-tools` (optional to install frida gadget/scripts into the target application)
+- adb (optional to automatically detect target architecture)
 
 ##### APK Patcher Installation
 `pip install apkpatcher-cli`
@@ -98,18 +86,16 @@ For all usages, the output file will be something like <apkname>_patched.apk.
   ```
   apkpatcher --enable-user-certificates --prevent-frida-gadget -a base.apk
   ```
+  ~~
 
   Note that we used the option `--prevent-frida-gadget`, so the frida gadget library is not inserted in application
 
   **Caution:** If the network_security_config.xml file already exists, apkpatcher will delete it, and this may cause some bug. APK Patcher will show you the original file content before deleting it.
 
 - ##### Force Extract Resources
-  APK Patcher will try the most it can to avoid extracting resource files, since this task may fail sometimes. So if you just want to insert frida gadget and the app already declares the usage of `android.permission.INTERNET`, apkpatcher will not extract AndroidManifest.xml and resource files. It will modify only some smali code.
+  ~~APK Patcher will try the most it can to avoid extracting resource files, since this task may fail sometimes. So if you just want to insert frida gadget and the app already declares the usage of `android.permission.INTERNET`, apkpatcher will not extract AndroidManifest.xml and resource files. It will modify only some smali code.~~
   
-  If you want to force APK Patcher to extract resources even when it its not required, use the following command
-  ```
-  apkpatcher -a base.apk --force-extract-resources
-  ```
+  As of 1.2.0 the tool will extract resources by default so the app can install: https://github.com/iBotPeaches/Apktool/issues/1626
 
 - ##### Help during package modification
   Every time you have to modify an APK, it is a tedious task to decompile, modify, repackage, sign (and generate a key if you don't have one) and zipalign it. APK Patcher will help you during this task. You can use the `--wait-before-repackage`, and APK Patcher will wait you make any change you want. Then you just instruct APK Patcher to continue, and it will automatically repack the APK, sign it with a random generated key and zipalign it. You can use this option with combination of other APK Patcher flags.
