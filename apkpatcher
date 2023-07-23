@@ -465,112 +465,21 @@ class Patcher:
         return final_tmp_dir
 
     def insert_frida_loader(self, entrypoint_smali_path, frida_lib_name='frida-gadget'):
-        partial_injection_code = '''
-    const-string v0, "<LIBFRIDA>"
 
-    invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V
-
-        '''.replace('<LIBFRIDA>', frida_lib_name)
-
-        full_injection_code = '''
-.method static constructor <clinit>()V
-    .locals 1
-
-    .prologue
-    const-string v0, "<LIBFRIDA>"
-
-    invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V
-
-    return-void
-.end method
-        '''.replace('<LIBFRIDA>', frida_lib_name)
-
-        with open(entrypoint_smali_path, 'r') as smali_file:
-            content = smali_file.read()
-
-            if 'frida-gadget' in content:
-                self.print_info(
-                    'The frida-gadget is already in the entrypoint. Skipping...')
-                return False
-
-            direct_methods_start_index = content.find('# direct methods')
-            direct_methods_end_index = content.find('# virtual methods')
-
-            if direct_methods_start_index == -1 or direct_methods_end_index == -1:
-                self.print_warn('Could not find direct methods.')
-                return False
-
-            class_constructor_start_index = content.find('.method static constructor <clinit>()V',
-                                                         direct_methods_start_index, direct_methods_end_index)
-
-            if class_constructor_start_index == -1:
-                has_class_constructor = False
-            else:
-                has_class_constructor = True
-
-            class_constructor_end_index = -1
-            if has_class_constructor:
-                class_constructor_end_index = content.find('.end method',
-                                                           class_constructor_start_index, direct_methods_end_index)
-
-            if has_class_constructor and class_constructor_end_index == -1:
-                self.print_warn('Could not find the end of class constructor.')
-                return False
-
-            prologue_start_index = -1
-            if has_class_constructor:
-                prologue_start_index = content.find('.prologue',
-                                                    class_constructor_start_index, class_constructor_end_index)
-
-            no_prologue_case = False
-            locals_start_index = -1
-            if has_class_constructor and prologue_start_index == -1:
-                no_prologue_case = True
-
-                locals_start_index = content.find('.locals ',
-                                                  class_constructor_start_index, class_constructor_end_index)
-
-            if no_prologue_case and locals_start_index == -1:
-                self.print_warn(
-                    'Has class constructor. No prologue case, but no "locals 0" found.')
-                return False
-
-            locals_end_index = -1
-            if no_prologue_case:
-                locals_end_index = locals_start_index + len('locals X')
-
-            prologue_end_index = -1
-            if has_class_constructor and prologue_start_index > -1:
-                prologue_end_index = prologue_start_index + \
-                    len('.prologue') + 1
-
-            if has_class_constructor:
-                if no_prologue_case:
-                    new_content = content[0:locals_end_index]
-
-                    if content[locals_end_index] == '0':
-                        new_content += '1'
-                    else:
-                        new_content += content[locals_end_index]
-
-                    new_content += '\n\n    .prologue'
-                    new_content += partial_injection_code
-                    new_content += content[locals_end_index+1:]
+        lines = []
+        with open(entrypoint_smali_path, 'r') as smali:
+            lines = smali.readlines()
+        for line in lines:
+            if line.startswith('.method public constructor <init>()V') or line.startswith('.method static constructor <clinit>()V'):
+                index = lines.index(line)
+                if lines[index + 1].startswith('    .locals'):
+                    lines.insert(index + 2, '    const-string v0, "{}"\n'.format(frida_lib_name))
+                    lines.insert(index + 3, '    invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V\n')
                 else:
-                    new_content = content[0:prologue_end_index]
-                    new_content += partial_injection_code
-                    new_content += content[prologue_end_index:]
-            else:
-                tmp_index = direct_methods_start_index + \
-                    len('# direct methods') + 1
-                new_content = content[0:tmp_index]
-                new_content += full_injection_code
-                new_content += content[tmp_index:]
-
-        # The newContent is ready to be saved
-
-        with open(entrypoint_smali_path, 'w') as smali_file:
-            smali_file.write(new_content)
+                    lines.insert(index + 1, '    const-string v0, "{}"\n'.format(frida_lib_name))
+                    lines.insert(index + 2, '    invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V\n')
+        with open(entrypoint_smali_path, 'w') as smali:
+            smali.writelines(lines)
 
         self.print_info(
             'Frida loader was injected in the entrypoint smali file!')
