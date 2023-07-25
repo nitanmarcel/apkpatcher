@@ -1,3 +1,7 @@
+# Unmaintained
+## This repository is not unmaintained and development has been moved towards [apkinjector](github.com/nitanmarcel/apkinjector)
+
+
 ## APK Patcher
 
 This tool was developed mainly to automatically insert Frida Gadget inside APKs but helps also in other common tasks while reversing Android apps.
