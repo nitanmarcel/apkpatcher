@@ -1,5 +1,5 @@
 # Unmaintained
-## This repository is not unmaintained and development has been moved towards [apkinjector](github.com/nitanmarcel/apkinjector)
+## This repository is not unmaintained and development has been moved towards [apkinjector](https://github.com/nitanmarcel/apkinjector)
 
 
 ## APK Patcher
